@@ -8,6 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+from llm_provider import chat_with_fallback
 
 # Import CV parser and agent — implementations live in their respective files
 from cv_parser import parse_cv      # TODO: implement parse_cv(file_path: str) -> dict
@@ -72,6 +74,21 @@ class SearchJobsResponse(BaseModel):
     session_id: str
     jobs: list[JobResult]
     total: int
+
+
+class ChatHistoryItem(BaseModel):
+    role: str  # "user" | "ai" | "assistant" | "system"
+    content: str
+
+
+class ChatRequest(BaseModel):
+    session_id: str
+    message: str
+    chat_history: list[ChatHistoryItem] | None = None
+
+
+class ChatResponse(BaseModel):
+    reply: str
 
 
 # ---------------------------------------------------------------------------
@@ -212,3 +229,90 @@ async def search_jobs(body: SearchJobsRequest):
         jobs=jobs,
         total=len(jobs),
     )
+
+
+@app.post("/chat", response_model=ChatResponse, tags=["Chat"])
+async def chat(body: ChatRequest):
+    """
+    Chat with the AI using the uploaded CV + matched job results as context.
+    The frontend may optionally provide `chat_history` to preserve conversation context.
+    """
+    session_id = body.session_id
+
+    if session_id not in sessions:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Session '{session_id}' not found. Please upload a CV first.",
+        )
+
+    session = sessions[session_id]
+    cv_data = session.get("cv_data") or {}
+    jobs = session.get("jobs") or []
+
+    # Normalize jobs into plain dicts (they may be Pydantic models)
+    normalized_jobs: list[dict] = []
+    for j in jobs:
+        if hasattr(j, "model_dump"):
+            normalized_jobs.append(j.model_dump())
+        elif isinstance(j, dict):
+            normalized_jobs.append(j)
+
+    # Keep the prompt compact to avoid token bloat
+    cv_context = {
+        "skills": cv_data.get("skills", []),
+        "job_titles": cv_data.get("job_titles", []),
+        "experience_years": cv_data.get("experience_years", 0),
+        "location": cv_data.get("location", "Not specified"),
+        "summary": cv_data.get("summary", ""),
+        "education": cv_data.get("education", ""),
+    }
+    jobs_context = [
+        {
+            "title": j.get("title"),
+            "company": j.get("company"),
+            "location": j.get("location"),
+            "url": j.get("url"),
+            "score": j.get("score"),
+            "description": j.get("description"),
+        }
+        for j in normalized_jobs[:10]
+    ]
+
+    system_prompt = (
+        "You are JobScout AI, a career assistant. Use the provided candidate CV data and the matched job results.\n"
+        "Be specific, practical, and concise. If you make assumptions, say they're assumptions.\n"
+        "When referencing jobs, cite their title + company and why.\n\n"
+        "=== Candidate CV Data (structured) ===\n"
+        f"{cv_context}\n\n"
+        "=== Matched Jobs (top results) ===\n"
+        f"{jobs_context}\n"
+    )
+
+    messages = [SystemMessage(content=system_prompt)]
+
+    # Optional conversation history, provided by the client
+    if body.chat_history:
+        for item in body.chat_history[-20:]:
+            role = (item.role or "").lower().strip()
+            content = (item.content or "").strip()
+            if not content:
+                continue
+
+            if role in {"user"}:
+                messages.append(HumanMessage(content=content))
+            elif role in {"ai", "assistant"}:
+                messages.append(AIMessage(content=content))
+            elif role in {"system"}:
+                # Usually avoid letting clients override system context,
+                # but we include it as a normal assistant message to preserve intent.
+                messages.append(AIMessage(content=content))
+
+    messages.append(HumanMessage(content=body.message))
+
+    try:
+        reply = chat_with_fallback(messages)
+        if not reply:
+            raise RuntimeError("Empty reply from model.")
+        return ChatResponse(reply=reply)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Chat failed: {exc}")

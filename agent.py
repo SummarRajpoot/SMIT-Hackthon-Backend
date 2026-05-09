@@ -16,10 +16,10 @@ import re
 from typing import Any
 
 from dotenv import load_dotenv
+from llm_provider import chat_with_fallback
 
 load_dotenv()
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 
 
@@ -45,20 +45,10 @@ def run_agent(cv_data: dict) -> list[dict]:
     Raises:
         RuntimeError: If the agent cannot connect to external APIs or fails mid-run.
     """
-    if not GROQ_API_KEY:
-        raise RuntimeError("GROQ_API_KEY is not set. Add it to Backend/.env.")
     if not TAVILY_API_KEY:
         raise RuntimeError("TAVILY_API_KEY is not set. Add it to Backend/.env.")
 
-    from langchain_groq import ChatGroq
     from langchain_community.tools.tavily_search import TavilySearchResults
-
-    llm = ChatGroq(
-        api_key=GROQ_API_KEY,
-        model="llama-3.3-70b-versatile",
-        temperature=0,
-        max_tokens=900,
-    )
 
     # Some versions of the Tavily tool read env var internally
     os.environ.setdefault("TAVILY_API_KEY", TAVILY_API_KEY)
@@ -70,7 +60,6 @@ def run_agent(cv_data: dict) -> list[dict]:
     location = cv_data.get("location") or ""
 
     queries = _generate_queries(
-        llm=llm,
         skills=skills,
         job_titles=job_titles,
         experience_years=experience_years,
@@ -107,7 +96,6 @@ def run_agent(cv_data: dict) -> list[dict]:
         snippet = (r.get("content") or r.get("snippet") or "").strip()
 
         job_eval = _score_job(
-            llm=llm,
             cv_data={
                 "skills": skills,
                 "job_titles": job_titles,
@@ -151,7 +139,6 @@ def run_agent(cv_data: dict) -> list[dict]:
 
 def _generate_queries(
     *,
-    llm: Any,
     skills: list[Any],
     job_titles: list[Any],
     experience_years: Any,
@@ -186,8 +173,8 @@ def _generate_queries(
         )
     )
 
-    resp = llm.invoke([system, user])
-    arr = _parse_json_from_text(resp.content)
+    content = chat_with_fallback([system, user])
+    arr = _parse_json_from_text(content)
     if not isinstance(arr, list):
         raise RuntimeError("Query generation failed (LLM did not return a JSON array).")
 
@@ -198,7 +185,7 @@ def _generate_queries(
     return queries
 
 
-def _score_job(*, llm: Any, cv_data: dict[str, Any], job_data: dict[str, Any]) -> dict[str, Any]:
+def _score_job(*, cv_data: dict[str, Any], job_data: dict[str, Any]) -> dict[str, Any]:
     from langchain_core.messages import HumanMessage, SystemMessage
 
     system = SystemMessage(
@@ -223,8 +210,8 @@ def _score_job(*, llm: Any, cv_data: dict[str, Any], job_data: dict[str, Any]) -
         )
     )
 
-    resp = llm.invoke([system, user])
-    obj = _parse_json_from_text(resp.content)
+    content = chat_with_fallback([system, user])
+    obj = _parse_json_from_text(content)
     if not isinstance(obj, dict):
         raise RuntimeError("Scoring failed (LLM did not return a JSON object).")
 

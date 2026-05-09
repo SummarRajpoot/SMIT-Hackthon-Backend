@@ -5,18 +5,12 @@ Extracts text from a PDF or DOCX CV, then uses Groq LLM to parse it into
 a structured dictionary for the JobScout AI agent.
 """
 
-import os
 import json
 import re
 from pathlib import Path
 
-from dotenv import load_dotenv
-from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage
-
-load_dotenv()
-
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+from llm_provider import chat_with_fallback
 
 # ---------------------------------------------------------------------------
 # System prompt — instructs the LLM to return strict JSON only
@@ -134,20 +128,7 @@ def _call_groq(cv_text: str) -> dict:
 
     Raises:
         ValueError: If the LLM response cannot be parsed as JSON.
-        RuntimeError: If GROQ_API_KEY is missing.
     """
-    if not GROQ_API_KEY:
-        raise RuntimeError(
-            "GROQ_API_KEY is not set. Add it to your .env file."
-        )
-
-    llm = ChatGroq(
-        api_key=GROQ_API_KEY,
-        model="llama-3.3-70b-versatile",
-        temperature=0,          # Deterministic output for reliable JSON
-        max_tokens=1024,
-    )
-
     # Truncate very long CVs to avoid token limits (~12k chars ≈ ~3k tokens)
     truncated_text = cv_text[:12000]
 
@@ -156,10 +137,8 @@ def _call_groq(cv_text: str) -> dict:
         HumanMessage(content=f"Here is the CV text:\n\n{truncated_text}"),
     ]
 
-    response = llm.invoke(messages)
-    raw_content = response.content.strip()
-
-    parsed = _extract_first_json_object(raw_content)
+    raw_content = chat_with_fallback(messages)
+    parsed = _extract_first_json_object(raw_content.strip())
     if not isinstance(parsed, dict):
         raise ValueError("LLM returned JSON but not an object.")
     return parsed
