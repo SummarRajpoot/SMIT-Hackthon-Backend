@@ -43,6 +43,7 @@ def run_agent(cv_data: dict) -> list[dict]:
             "score":       float,   # 0 – 100 match score
             "description": str,
         }
+    """
 
     from langchain_community.tools import DuckDuckGoSearchRun
     search_tool = DuckDuckGoSearchRun()
