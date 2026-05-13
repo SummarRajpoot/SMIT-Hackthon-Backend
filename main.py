@@ -101,6 +101,15 @@ async def health_check():
     return {"status": "ok"}
 
 
+@app.get("/api/alerts/{path:path}", tags=["Utility"])
+async def dummy_alerts(path: str):
+    """
+    Dummy endpoint to silence 404 errors from old browser caches or service workers
+    left over from previous projects (like OutbreakIQ).
+    """
+    return {"status": "deprecated", "message": "Alerts not used in JobScout AI."}
+
+
 @app.post("/upload-cv", response_model=UploadCVResponse, tags=["CV"])
 async def upload_cv(file: UploadFile = File(...)):
     """

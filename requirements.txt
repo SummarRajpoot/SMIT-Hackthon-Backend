@@ -3,24 +3,23 @@
 # ---------------------------------------------------------------------------
 fastapi>=0.111.0
 uvicorn[standard]>=0.29.0
-python-multipart>=0.0.9      # Required for UploadFile / Form support
+python-multipart>=0.0.9
 pydantic>=2.7.0
-
-# ---------------------------------------------------------------------------
-# Environment & config
-# ---------------------------------------------------------------------------
 python-dotenv>=1.0.1
 
 # ---------------------------------------------------------------------------
-# CV parsing  (uncomment when implementing cv_parser.py)
+# CV parsing
 # ---------------------------------------------------------------------------
-# pymupdf>=1.24.0             # PDF text extraction (import as fitz)
-# python-docx>=1.1.0          # DOCX text extraction
+pypdf>=4.2.0
+python-docx>=1.1.0
 
 # ---------------------------------------------------------------------------
-# AI agent  (uncomment when implementing agent.py)
+# AI agent & LLM
 # ---------------------------------------------------------------------------
-# langchain>=0.2.0
-# langchain-groq>=0.1.5
-# langchain-community>=0.2.0
-# tavily-python>=0.3.3
+langchain>=0.2.0
+langchain-core>=0.2.0
+langchain-groq>=0.1.5
+langchain-community>=0.2.0
+langchain-google-genai>=1.0.1
+langchain-tavily>=0.1.0
+tavily-python>=0.3.3

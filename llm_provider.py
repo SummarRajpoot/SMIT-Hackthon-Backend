@@ -4,7 +4,7 @@ llm_provider.py
 Centralized LLM provider with automatic fallback:
 
 - Groq tiered fallbacks (separate rate limits):
-  1) llama3-8b-8192
+  1) llama-3.1-8b-instant
   2) gemma2-9b-it
 - Final fallback: Google Gemini (ChatGoogleGenerativeAI) using gemini-2.0-flash
 
@@ -23,7 +23,7 @@ load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-_GROQ_MODELS = ("llama3-8b-8192", "gemma2-9b-it")
+_GROQ_MODELS = ("llama-3.1-8b-instant", "gemma2-9b-it")
 
 
 def _is_rate_limit_error(exc: BaseException) -> bool:

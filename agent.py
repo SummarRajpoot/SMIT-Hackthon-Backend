@@ -48,11 +48,11 @@ def run_agent(cv_data: dict) -> list[dict]:
     if not TAVILY_API_KEY:
         raise RuntimeError("TAVILY_API_KEY is not set. Add it to Backend/.env.")
 
-    from langchain_community.tools.tavily_search import TavilySearchResults
+    from langchain_tavily import TavilySearch
 
     # Some versions of the Tavily tool read env var internally
     os.environ.setdefault("TAVILY_API_KEY", TAVILY_API_KEY)
-    search_tool = TavilySearchResults(api_key=TAVILY_API_KEY, max_results=5)
+    search_tool = TavilySearch(max_results=5)
 
     skills = cv_data.get("skills") or []
     job_titles = cv_data.get("job_titles") or []
