@@ -230,8 +230,10 @@ def _coerce_search_results(results: Any) -> list[dict[str, Any]]:
         return []
 
     if isinstance(results, str):
+        # Sanitize to remove invalid control characters before parsing JSON
+        sanitized = re.sub(r'[\x00-\x1f\x7f]', ' ', results)
         try:
-            results = json.loads(results)
+            results = json.loads(sanitized)
         except Exception:
             return []
 
