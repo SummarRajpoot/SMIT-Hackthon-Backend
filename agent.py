@@ -3,9 +3,9 @@ agent.py
 --------
 AI agent that takes structured CV data and returns a ranked list of job results.
 
-TODO: Implement run_agent() using LangChain / LangGraph + Tavily search tool:
+TODO: Implement run_agent() using LangChain / LangGraph + DuckDuckGo search tool:
   1. Build a prompt from cv_data (skills, experience, title).
-  2. Use Tavily API (TAVILY_API_KEY from .env) to search for relevant jobs.
+  2. Use DuckDuckGo search to find relevant jobs.
   3. Use Groq LLM (GROQ_API_KEY from .env) to rank and score results.
   4. Return a list of ranked job dicts.
 """
@@ -22,7 +22,7 @@ from llm_provider import chat_with_fallback
 
 load_dotenv()
 
-TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
+
 
 
 def run_agent(cv_data: dict) -> list[dict]:
@@ -44,17 +44,8 @@ def run_agent(cv_data: dict) -> list[dict]:
             "description": str,
         }
 
-    Raises:
-        RuntimeError: If the agent cannot connect to external APIs or fails mid-run.
-    """
-    if not TAVILY_API_KEY:
-        raise RuntimeError("TAVILY_API_KEY is not set. Add it to Backend/.env.")
-
-    from langchain_tavily import TavilySearch
-
-    # Some versions of the Tavily tool read env var internally
-    os.environ.setdefault("TAVILY_API_KEY", TAVILY_API_KEY)
-    search_tool = TavilySearch(max_results=5, timeout=30)
+    from langchain_community.tools import DuckDuckGoSearchRun
+    search_tool = DuckDuckGoSearchRun()
 
     skills = cv_data.get("skills") or []
     job_titles = cv_data.get("job_titles") or []
@@ -70,29 +61,13 @@ def run_agent(cv_data: dict) -> list[dict]:
 
     raw_results: list[dict[str, Any]] = []
     for q in queries:
-        results = None
         try:
-            # Try various invocation patterns supported by LangChain
-            try:
-                results = search_tool.invoke({"query": q})
-            except (ConnectionError, httpx.ConnectError):
-                traceback.print_exc()
-                raise RuntimeError("Agent execution failed: Connection error.")
-            except Exception:
-                try:
-                    results = search_tool.invoke(q)
-                except (ConnectionError, httpx.ConnectError):
-                    traceback.print_exc()
-                    raise RuntimeError("Agent execution failed: Connection error.")
-                except Exception:
-                    results = search_tool.run(q)
-        except RuntimeError:
-            raise
+            results = search_tool.run(q)
         except Exception:
-            # Ignore other search failures to continue with other queries
+            traceback.print_exc()
             results = None
 
-        raw_results.extend(_coerce_tavily_results(results))
+        raw_results.extend(_coerce_search_results(results))
 
     seen_urls: set[str] = set()
     scored_jobs: list[dict[str, Any]] = []
@@ -249,7 +224,7 @@ def _score_job(*, cv_data: dict[str, Any], job_data: dict[str, Any]) -> dict[str
     }
 
 
-def _coerce_tavily_results(results: Any) -> list[dict[str, Any]]:
+def _coerce_search_results(results: Any) -> list[dict[str, Any]]:
     if results is None:
         return []
 
