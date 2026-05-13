@@ -18,6 +18,7 @@ jobs:
         run: |
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
-          # Using quotes around the URL to handle any special characters in the token
-          git push --force "https://ranasummar0:$HF_TOKEN@huggingface.co/spaces/ranasummar0/JobScout-AI" main:main
-          
+          git config --global credential.helper store
+          # Store credentials in the runner's store to avoid URL formatting issues
+          echo "https://ranasummar0:$HF_TOKEN@huggingface.co" > ~/.git-credentials
+          git push --force https://huggingface.co/spaces/ranasummar0/JobScout-AI.git main:main
