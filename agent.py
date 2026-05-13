@@ -13,6 +13,7 @@ TODO: Implement run_agent() using LangChain / LangGraph + Tavily search tool:
 import os
 import json
 import re
+import httpx
 from typing import Any
 
 from dotenv import load_dotenv
@@ -52,7 +53,7 @@ def run_agent(cv_data: dict) -> list[dict]:
 
     # Some versions of the Tavily tool read env var internally
     os.environ.setdefault("TAVILY_API_KEY", TAVILY_API_KEY)
-    search_tool = TavilySearch(max_results=5)
+    search_tool = TavilySearch(max_results=5, timeout=30)
 
     skills = cv_data.get("skills") or []
     job_titles = cv_data.get("job_titles") or []
@@ -70,14 +71,23 @@ def run_agent(cv_data: dict) -> list[dict]:
     for q in queries:
         results = None
         try:
-            # Different LC versions accept either a str input or {"query": str}
+            # Try various invocation patterns supported by LangChain
             try:
                 results = search_tool.invoke({"query": q})
+            except (ConnectionError, httpx.ConnectError):
+                raise RuntimeError("Agent execution failed: Connection error.")
             except Exception:
-                results = search_tool.invoke(q)
+                try:
+                    results = search_tool.invoke(q)
+                except (ConnectionError, httpx.ConnectError):
+                    raise RuntimeError("Agent execution failed: Connection error.")
+                except Exception:
+                    results = search_tool.run(q)
+        except RuntimeError:
+            raise
         except Exception:
-            # As a last resort, try run()
-            results = search_tool.run(q)
+            # Ignore other search failures to continue with other queries
+            results = None
 
         raw_results.extend(_coerce_tavily_results(results))
 
