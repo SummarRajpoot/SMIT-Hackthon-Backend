@@ -12,13 +12,20 @@ jobs:
         with:
           fetch-depth: 0
           lfs: true
+      - name: Debug Token
+        run: |
+          if [ -z "${{ secrets.HF_TOKEN }}" ]; then
+            echo "ERROR: HF_TOKEN is empty! Please check your GitHub Secrets."
+            exit 1
+          else
+            echo "HF_TOKEN is set. Proceeding..."
+          fi
       - name: Push to hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
-          # We use a credential helper to avoid malformed URL issues
           git config --global credential.helper store
-          echo "https://ranasummar0:${HF_TOKEN}@huggingface.co" > ~/.git-credentials
+          echo "https://ranasummar0:$HF_TOKEN@huggingface.co" > ~/.git-credentials
           git push --force https://huggingface.co/spaces/ranasummar0/JobScout-AI.git main:main
