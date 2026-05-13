@@ -14,6 +14,7 @@ import os
 import json
 import re
 import httpx
+import traceback
 from typing import Any
 
 from dotenv import load_dotenv
@@ -75,11 +76,13 @@ def run_agent(cv_data: dict) -> list[dict]:
             try:
                 results = search_tool.invoke({"query": q})
             except (ConnectionError, httpx.ConnectError):
+                traceback.print_exc()
                 raise RuntimeError("Agent execution failed: Connection error.")
             except Exception:
                 try:
                     results = search_tool.invoke(q)
                 except (ConnectionError, httpx.ConnectError):
+                    traceback.print_exc()
                     raise RuntimeError("Agent execution failed: Connection error.")
                 except Exception:
                     results = search_tool.run(q)
